@@ -102,3 +102,15 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# My stuff
+cover
+coverage.xml
+dist
+docs/_build
+docs/asciidoc/html_docs
+nosetests.xml
+samples
+wheelhouse
+windows
+
