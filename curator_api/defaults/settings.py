@@ -1,6 +1,6 @@
 from os import path
 from six import string_types
-from voluptuous import All, Any, Boolean, Coerce, Optional, Range, Required
+# from voluptuous import All, Any, Boolean, Coerce, Optional, Range, Required
 
 # Elasticsearch versions supported
 def version_max():
@@ -100,39 +100,39 @@ def default_options():
 def default_filters():
     return { 'filters' : [{ 'filtertype' : 'none' }] }
 
-def structural_filter_elements():
-    # pylint: disable=E1120
-    return {
-        Optional('aliases'): Any(list, *string_types),
-        Optional('allocation_type'): Any(*string_types),
-        Optional('count'): Coerce(int),
-        Optional('date_from'): Any(None, *string_types),
-        Optional('date_from_format'): Any(None, *string_types),
-        Optional('date_to'): Any(None, *string_types),
-        Optional('date_to_format'): Any(None, *string_types),
-        Optional('direction'): Any(*string_types),
-        Optional('disk_space'): float,
-        Optional('epoch'): Any(Coerce(int), None),
-        Optional('exclude'): Any(None, bool, int, *string_types),
-        Optional('field'): Any(None, *string_types),
-        Optional('intersect'): Any(None, bool, int, *string_types),
-        Optional('key'): Any(*string_types),
-        Optional('kind'): Any(*string_types),
-        Optional('max_num_segments'): Coerce(int),
-        Optional('pattern'): Any(*string_types),
-        Optional('period_type'): Any(*string_types),
-        Optional('reverse'): Any(None, bool, int, *string_types),
-        Optional('range_from'): Coerce(int),
-        Optional('range_to'): Coerce(int),
-        Optional('source'): Any(*string_types),
-        Optional('state'): Any(*string_types),
-        Optional('stats_result'): Any(None, *string_types),
-        Optional('timestring'): Any(None, *string_types),
-        Optional('threshold_behavior'): Any(*string_types),
-        Optional('unit'): Any(*string_types),
-        Optional('unit_count'): Coerce(int),
-        Optional('unit_count_pattern'): Any(*string_types),
-        Optional('use_age'): Boolean(),
-        Optional('value'): Any(int, float, bool, *string_types),
-        Optional('week_starts_on'): Any(None, *string_types),
-    }
+# def structural_filter_elements():
+#     # pylint: disable=E1120
+#     return {
+#         Optional('aliases'): Any(list, *string_types),
+#         Optional('allocation_type'): Any(*string_types),
+#         Optional('count'): Coerce(int),
+#         Optional('date_from'): Any(None, *string_types),
+#         Optional('date_from_format'): Any(None, *string_types),
+#         Optional('date_to'): Any(None, *string_types),
+#         Optional('date_to_format'): Any(None, *string_types),
+#         Optional('direction'): Any(*string_types),
+#         Optional('disk_space'): float,
+#         Optional('epoch'): Any(Coerce(int), None),
+#         Optional('exclude'): Any(None, bool, int, *string_types),
+#         Optional('field'): Any(None, *string_types),
+#         Optional('intersect'): Any(None, bool, int, *string_types),
+#         Optional('key'): Any(*string_types),
+#         Optional('kind'): Any(*string_types),
+#         Optional('max_num_segments'): Coerce(int),
+#         Optional('pattern'): Any(*string_types),
+#         Optional('period_type'): Any(*string_types),
+#         Optional('reverse'): Any(None, bool, int, *string_types),
+#         Optional('range_from'): Coerce(int),
+#         Optional('range_to'): Coerce(int),
+#         Optional('source'): Any(*string_types),
+#         Optional('state'): Any(*string_types),
+#         Optional('stats_result'): Any(None, *string_types),
+#         Optional('timestring'): Any(None, *string_types),
+#         Optional('threshold_behavior'): Any(*string_types),
+#         Optional('unit'): Any(*string_types),
+#         Optional('unit_count'): Coerce(int),
+#         Optional('unit_count_pattern'): Any(*string_types),
+#         Optional('use_age'): Boolean(),
+#         Optional('value'): Any(int, float, bool, *string_types),
+#         Optional('week_starts_on'): Any(None, *string_types),
+#     }
