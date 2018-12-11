@@ -113,4 +113,5 @@ nosetests.xml
 samples
 wheelhouse
 windows
+.vscode
 

@@ -54,3 +54,4 @@ class FailedRestore(CuratorException):
     """
     Exception raised when a Snapshot Restore does not restore all selected indices
     """
+

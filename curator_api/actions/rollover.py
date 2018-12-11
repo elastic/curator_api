@@ -86,6 +86,35 @@ class Rollover(ActionClass):
             retval['settings'] = self.settings
         return retval
 
+    def log_result(self, result):
+        """
+        Log the results based on whether the index rolled over or not
+        """
+        dryrun_string = ''
+        if result['dry_run']:
+            dryrun_string = 'DRY-RUN: '
+        self.loggit.debug('{0}Result: {1}'.format(dryrun_string, result))
+        rollover_string = '{0}Old index {1} rolled over to new index {2}'.format(
+            dryrun_string,
+            result['old_index'],
+            result['new_index']
+        )
+        # Success is determined by at one condition being True
+        success = False
+        for k in list(result['conditions'].keys()):
+            if result['conditions'][k]:
+                success = True
+        if result['dry_run'] and success: # log "successful" dry-run
+            self.loggit.info(rollover_string)
+        elif result['rolled_over']:
+            self.loggit.info(rollover_string)
+        else:
+            self.loggit.info(
+                '{0}Rollover conditions not met. Index {0} not rolled over.'.format(
+                    dryrun_string,
+                    result['old_index'])
+            )
+
     def doit(self, dry_run=False):
         """
         This exists solely to prevent having to have duplicate code in both
@@ -104,9 +133,7 @@ class Rollover(ActionClass):
         Log what the output would be, but take no action.
         """
         self.loggit.info('DRY-RUN MODE.  No changes will be made.')
-        result = self.doit(dry_run=True)
-        self.loggit.info('DRY-RUN: rollover: {0} result: '
-            '{1}'.format(self.name, result))
+        self.log_result(self.doit(dry_run=True))
 
     def do_action(self):
         """
@@ -114,6 +141,6 @@ class Rollover(ActionClass):
         """
         self.loggit.info('Performing index rollover')
         try:
-            self.doit()
+            self.log_result(self.doit())
         except Exception as e:
             self.report_failure(e)

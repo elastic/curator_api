@@ -1,5 +1,8 @@
+"""Utility functions"""
 # from sys import version_info as python_version
+import logging
 from six import string_types
+from curator_api.exceptions import NoIndices
 
 def byte_size(num, suffix='B'):
     """
@@ -10,7 +13,7 @@ def byte_size(num, suffix='B'):
     :arg suffix: An arbitrary suffix, like `Bytes`
     :rtype: float
     """
-    for unit in ['','K','M','G','T','P','E','Z']:
+    for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -26,6 +29,13 @@ def ensure_list(indices):
     if not isinstance(indices, list): # in case of a single value passed
         indices = [indices]
     return indices
+
+def empty_list_check(index_list):
+    """Raise exception if `index_list` is empty"""
+    logger = logging.getLogger(__name__)
+    logger.debug('Checking for empty index list')
+    if not index_list:
+        raise NoIndices('index_list object is empty.')
 
 def to_csv(indices):
     """
@@ -50,7 +60,7 @@ def prune_nones(mydict):
     :rtype: dict
     """
     # Test for `None` instead of existence or zero values will be caught
-    return dict([(k,v) for k, v in mydict.items() if v != None and v != 'None'])
+    return dict([(k, v) for k, v in mydict.items() if v != None and v != 'None'])
 
 def check_csv(value):
     """
@@ -73,5 +83,6 @@ def check_csv(value):
             return False
     else:
         raise TypeError(
-            'Passed value: {0} is not a list or a string but is of type {1}'.format(value, type(value))
+            'Passed value: {0} is not a list or a string but is of type {1}'.format(
+                value, type(value))
         )

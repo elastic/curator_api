@@ -10,11 +10,11 @@ class ActionClass(object):
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
-    def show_dry_run(self, ilo, action, **kwargs):
+    def show_dry_run(self, index_list, action, **kwargs):
         """
         Log dry run output with the action which would have been executed.
 
-        :arg ilo: A :class:`curator.indexlist.IndexList`
+        :arg index_list: A list of indices
         :arg action: The `action` to be performed.
         :arg kwargs: Any other args to show in the log output
         """
@@ -23,9 +23,10 @@ class ActionClass(object):
             '(CLOSED) indices may be shown that may not be acted on by '
             'action "{0}".'.format(action)
         )
-        indices = sorted(ilo.indices)
+        indices = sorted(index_list)
         for idx in indices:
-                index_closed = ilo.index_info[idx]['state'] == 'close'
+                # index_closed = ilo.index_info[idx]['state'] == 'close'
+                index_closed = False
                 self.logger.info(
                     'DRY-RUN: {0}: {1}{2} with arguments: {3}'.format(
                         action, idx, ' (CLOSED)' if index_closed else '', kwargs
