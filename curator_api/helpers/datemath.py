@@ -187,13 +187,15 @@ def get_point_of_reference(unit, count, epoch=None):
 
 def get_unit_count_from_name(index_name, pattern):
     """Extract a unit_count from an index_name"""
+    logger = logging.getLogger(__name__)
     if pattern is None:
         return None
     match = pattern.search(index_name)
     if match:
         try:
             return int(match.group(1))
-        except Exception:
+        except Exception as err:
+            logger.debug('Unable to convert value to integer: {0}'.format(err))
             return None
     else:
         return None
@@ -487,9 +489,12 @@ def parse_datemath(client, value):
     rxp = re.compile(pattern)
     try:
         prefix = rxp.match(value).group(1) or ''
+        logger.debug('prefix = {0}'.format(prefix))
         datemath = rxp.match(value).group(2)
+        logger.debug('datemath = {0}'.format(datemath))
         # formatter = rxp.match(value).group(3) or '' (not captured, but counted)
         suffix = rxp.match(value).group(4) or ''
+        logger.debug('suffix = {0}'.format(suffix))
     except AttributeError:
         raise ConfigurationError(
             'Value "{0}" does not contain a valid datemath pattern.'.format(value))

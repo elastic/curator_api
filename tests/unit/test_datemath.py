@@ -1,12 +1,21 @@
 """Test datemath functions"""
 # pylint: disable=C0103,C0111
+import re
 from datetime import datetime, timedelta
 from unittest import TestCase
 from mock import Mock
-import elasticsearch
+from elasticsearch.exceptions import NotFoundError
+from curator_api.exceptions import ConfigurationError, MissingArgument
 from curator_api.helpers.datemath import (
-    fix_epoch, get_date_regex, get_datetime, get_point_of_reference)
-from . import testvars as testvars
+    absolute_date_range, date_range, datetime_to_epoch, fix_epoch, get_date_regex, get_datemath,
+    get_datetime, get_point_of_reference, get_unit_count_from_name, isdatemath, parse_date_pattern,
+    parse_datemath, TimestringSearch
+)
+
+EPOCH = datetime_to_epoch(datetime(2017, 4, 3, 22, 50, 17))
+
+def make_epoch(year, month, day, hour, minute, second):
+    return datetime_to_epoch(datetime(year, month, day, hour, minute, second))
 
 class TestGetIndexTime(TestCase):
     def test_get_datetime(self):
@@ -83,434 +92,230 @@ class TestGetPointOfReference(TestCase):
             self.assertEqual(result, get_point_of_reference(unit, 1, epoch))
     def test_get_por_raise(self):
         self.assertRaises(ValueError, get_point_of_reference, 'invalid', 1)
+    def test_por_null(self):
+        self.assertLessEqual(get_point_of_reference('days', 1), datetime_to_epoch(datetime.now()))
 
-# class TestDateRange(TestCase):
-#     def test_bad_unit(self):
-#         self.assertRaises(curator.ConfigurationError,
-#             curator.date_range, 'invalid', 1, 1
-#         )
-#     def test_bad_range(self):
-#         self.assertRaises(curator.ConfigurationError,
-#             curator.date_range, 'hours', 1, -1
-#         )
-#     def test_hours_single(self):
-#         unit = 'hours'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3, 21,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  3, 21, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_hours_past_range(self):
-#         unit = 'hours'
-#         range_from = -3
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3, 19,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  3, 21, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_hours_future_range(self):
-#         unit = 'hours'
-#         range_from = 0
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3, 22,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  4, 00, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_hours_span_range(self):
-#         unit = 'hours'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3, 21,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  4, 00, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_days_single(self):
-#         unit = 'days'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  2,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  2, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_days_past_range(self):
-#         unit = 'days'
-#         range_from = -3
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 31,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  2, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_days_future_range(self):
-#         unit = 'days'
-#         range_from = 0
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  5, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_days_span_range(self):
-#         unit = 'days'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  2,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  5, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_weeks_single(self):
-#         unit = 'weeks'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 26,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  1, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_weeks_past_range(self):
-#         unit = 'weeks'
-#         range_from = -3
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 12,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  1, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_weeks_future_range(self):
-#         unit = 'weeks'
-#         range_from = 0
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  2, 00,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4, 22, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_weeks_span_range(self):
-#         unit = 'weeks'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 26,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4, 22, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_weeks_single_iso(self):
-#         unit = 'weeks'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 27,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  2, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch,
-#                 week_starts_on='monday')
-#         )
-#     def test_weeks_past_range_iso(self):
-#         unit = 'weeks'
-#         range_from = -3
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 13,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4,  2, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch,
-#                 week_starts_on='monday')
-#         )
-#     def test_weeks_future_range_iso(self):
-#         unit = 'weeks'
-#         range_from = 0
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  4,  3,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4, 23, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch,
-#                 week_starts_on='monday')
-#         )
-#     def test_weeks_span_range_iso(self):
-#         unit = 'weeks'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3, 27,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  4, 23, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch,
-#                 week_starts_on='monday')
-#         )
-#     def test_months_single(self):
-#         unit = 'months'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  3, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_months_past_range(self):
-#         unit = 'months'
-#         range_from = -4
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2016, 12,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  3, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_months_future_range(self):
-#         unit = 'months'
-#         range_from = 7
-#         range_to = 10
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017, 11,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2018,  2, 28, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_months_super_future_range(self):
-#         unit = 'months'
-#         range_from = 9
-#         range_to = 10
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2018,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2018,  2, 28, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_months_span_range(self):
-#         unit = 'months'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  3,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  6, 30, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_years_single(self):
-#         unit = 'years'
-#         range_from = -1
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2016,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2016, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_years_past_range(self):
-#         unit = 'years'
-#         range_from = -3
-#         range_to = -1
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2014,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2016, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_years_future_range(self):
-#         unit = 'years'
-#         range_from = 0
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2019, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
-#     def test_years_span_range(self):
-#         unit = 'years'
-#         range_from = -1
-#         range_to = 2
-#         epoch = curator.datetime_to_epoch(datetime(2017,  4,  3, 22, 50, 17))
-#         start = curator.datetime_to_epoch(datetime(2016,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2019, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.date_range(unit, range_from, range_to, epoch=epoch))
+class TestDateRange(TestCase):
+    def test_bad_unit(self):
+        self.assertRaises(ConfigurationError, date_range, 'invalid', 1, 1)
+    def test_bad_range(self):
+        self.assertRaises(ConfigurationError, date_range, 'hours', 1, -1)
+    def test_now_live(self):
+        unit = 'hours'
+        start, end = date_range(unit, -1, -1)
+        self.assertLessEqual(start, end)
+    def test_hour_ranges(self):
+        unit = 'hours'
+        date1 = make_epoch(2017, 4, 3, 21, 59, 59)
+        date2 = make_epoch(2017, 4, 4, 0, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2017, 4, 3, 21, 0, 0), date1)),
+                ((-3, -1), (make_epoch(2017, 4, 3, 19, 0, 0), date1)),
+                ((0, 2), (make_epoch(2017, 4, 3, 22, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2017, 4, 3, 21, 0, 0), date2)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual((start, end), date_range(unit, range_from, range_to, epoch=EPOCH))
+    def test_day_ranges(self):
+        unit = 'days'
+        date1 = make_epoch(2017, 4, 2, 23, 59, 59)
+        date2 = make_epoch(2017, 4, 5, 23, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2017, 4, 2, 0, 0, 0), date1)),
+                ((-3, -1), (make_epoch(2017, 3, 31, 0, 0, 0), date1)),
+                ((0, 2), (make_epoch(2017, 4, 3, 0, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2017, 4, 2, 0, 0, 0), date2)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual((start, end), date_range(unit, range_from, range_to, epoch=EPOCH))
+    def test_week_ranges(self):
+        unit = 'weeks'
+        date1 = make_epoch(2017, 4, 1, 23, 59, 59)
+        date2 = make_epoch(2017, 4, 22, 23, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2017, 3, 26, 0, 0, 0), date1)),
+                ((-3, -1), (make_epoch(2017, 3, 12, 0, 0, 0), date1)),
+                ((0, 2), (make_epoch(2017, 4, 2, 0, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2017, 3, 26, 0, 0, 0), date2)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual((start, end), date_range(unit, range_from, range_to, epoch=EPOCH))
+    def test_iso_week_ranges(self):
+        unit = 'weeks'
+        date1 = make_epoch(2017, 4, 2, 23, 59, 59)
+        date2 = make_epoch(2017, 4, 23, 23, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2017, 3, 27, 0, 0, 0), date1)),
+                ((-3, -1), (make_epoch(2017, 3, 13, 0, 0, 0), date1)),
+                ((0, 2), (make_epoch(2017, 4, 3, 0, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2017, 3, 27, 0, 0, 0), date2)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual(
+                (start, end),
+                date_range(unit, range_from, range_to, epoch=EPOCH, week_starts_on='monday')
+            )
+    def test_month_ranges(self):
+        unit = 'months'
+        date1 = make_epoch(2017, 3, 31, 23, 59, 59)
+        date2 = make_epoch(2018, 2, 28, 23, 59, 59)
+        date3 = make_epoch(2017, 6, 30, 23, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2017, 3, 1, 0, 0, 0), date1)),
+                ((-4, -1), (make_epoch(2016, 12, 1, 0, 0, 0), date1)),
+                ((7, 10), (make_epoch(2017, 11, 1, 0, 0, 0), date2)),
+                ((9, 10), (make_epoch(2018, 1, 1, 0, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2017, 3, 1, 0, 0, 0), date3)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual((start, end), date_range(unit, range_from, range_to, epoch=EPOCH))
+    def test_year_ranges(self):
+        unit = 'years'
+        date1 = make_epoch(2016, 12, 31, 23, 59, 59)
+        date2 = make_epoch(2019, 12, 31, 23, 59, 59)
+        for tuples in [
+                ((-1, -1), (make_epoch(2016, 1, 1, 0, 0, 0), date1)),
+                ((-3, -1), (make_epoch(2014, 1, 1, 0, 0, 0), date1)),
+                ((0, 2), (make_epoch(2017, 1, 1, 0, 0, 0), date2)),
+                ((-1, 2), (make_epoch(2016, 1, 1, 0, 0, 0), date2)),
+            ]:
+            range_from, range_to = tuples[0]
+            start, end = tuples[1]
+            self.assertEqual((start, end), date_range(unit, range_from, range_to, epoch=EPOCH))
 
-# class TestAbsoluteDateRange(TestCase):
-#     def test_bad_unit(self):
-#         unit = 'invalid'
-#         date_from = '2017.01'
-#         date_from_format = '%Y.%m'
-#         date_to = '2017.01'
-#         date_to_format = '%Y.%m'
-#         self.assertRaises(
-#             curator.ConfigurationError,
-#             curator.absolute_date_range, unit,
-#             date_from, date_to, date_from_format, date_to_format
-#         )
-#     def test_bad_formats(self):
-#         unit = 'days'
-#         self.assertRaises(
-#             curator.ConfigurationError,
-#             curator.absolute_date_range, unit, 'meh', 'meh', None, 'meh'
-#         )
-#         self.assertRaises(
-#             curator.ConfigurationError,
-#             curator.absolute_date_range, unit, 'meh', 'meh', 'meh', None
-#         )
-#     def test_bad_dates(self):
-#         unit = 'weeks'
-#         date_from_format = '%Y.%m'
-#         date_to_format = '%Y.%m'
-#         self.assertRaises(
-#             curator.ConfigurationError,
-#             curator.absolute_date_range, unit, 'meh', '2017.01', date_from_format, date_to_format
-#         )
-#         self.assertRaises(
-#             curator.ConfigurationError,
-#             curator.absolute_date_range, unit, '2017.01', 'meh', date_from_format, date_to_format
-#         )
-#     def test_single_month(self):
-#         unit = 'months'
-#         date_from = '2017.01'
-#         date_from_format = '%Y.%m'
-#         date_to = '2017.01'
-#         date_to_format = '%Y.%m'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_multiple_month(self):
-#         unit = 'months'
-#         date_from = '2016.11'
-#         date_from_format = '%Y.%m'
-#         date_to = '2016.12'
-#         date_to_format = '%Y.%m'
-#         start = curator.datetime_to_epoch(datetime(2016, 11,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2016, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_single_year(self):
-#         unit = 'years'
-#         date_from = '2017'
-#         date_from_format = '%Y'
-#         date_to = '2017'
-#         date_to_format = '%Y'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_multiple_year(self):
-#         unit = 'years'
-#         date_from = '2016'
-#         date_from_format = '%Y'
-#         date_to = '2017'
-#         date_to_format = '%Y'
-#         start = curator.datetime_to_epoch(datetime(2016,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017, 12, 31, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_single_week_UW(self):
-#         unit = 'weeks'
-#         date_from = '2017-01'
-#         date_from_format = '%Y-%U'
-#         date_to = '2017-01'
-#         date_to_format = '%Y-%U'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  2,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1,  8, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_multiple_weeks_UW(self):
-#         unit = 'weeks'
-#         date_from = '2017-01'
-#         date_from_format = '%Y-%U'
-#         date_to = '2017-04'
-#         date_to_format = '%Y-%U'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,   2,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1,  29, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_single_week_ISO(self):
-#         unit = 'weeks'
-#         date_from = '2014-01'
-#         date_from_format = '%G-%V'
-#         date_to = '2014-01'
-#         date_to_format = '%G-%V'
-#         start = curator.datetime_to_epoch(datetime(2013, 12, 30,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2014,  1,  5, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_multiple_weeks_ISO(self):
-#         unit = 'weeks'
-#         date_from = '2014-01'
-#         date_from_format = '%G-%V'
-#         date_to = '2014-04'
-#         date_to_format = '%G-%V'
-#         start = curator.datetime_to_epoch(datetime(2013, 12, 30,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2014,  1, 26, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_single_day(self):
-#         unit = 'days'
-#         date_from = '2017.01.01'
-#         date_from_format = '%Y.%m.%d'
-#         date_to = '2017.01.01'
-#         date_to_format = '%Y.%m.%d'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1,  1, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_multiple_days(self):
-#         unit = 'days'
-#         date_from = '2016.12.31'
-#         date_from_format = '%Y.%m.%d'
-#         date_to = '2017.01.01'
-#         date_to_format = '%Y.%m.%d'
-#         start = curator.datetime_to_epoch(datetime(2016, 12, 31,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1,  1, 23, 59, 59))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
-#     def test_ISO8601(self):
-#         unit = 'seconds'
-#         date_from = '2017-01-01T00:00:00'
-#         date_from_format = '%Y-%m-%dT%H:%M:%S'
-#         date_to = '2017-01-01T12:34:56'
-#         date_to_format = '%Y-%m-%dT%H:%M:%S'
-#         start = curator.datetime_to_epoch(datetime(2017,  1,  1,  0,  0,  0))
-#         end   = curator.datetime_to_epoch(datetime(2017,  1,  1, 12, 34, 56))
-#         self.assertEqual((start,end),
-#             curator.absolute_date_range(
-#                 unit, date_from, date_to, date_from_format, date_to_format))
+class TestAbsoluteDateRange(TestCase):
+    def test_bad_unit(self):
+        unit = 'invalid'
+        date_from = '2017.01'
+        date_from_format = '%Y.%m'
+        date_to = '2017.01'
+        date_to_format = '%Y.%m'
+        self.assertRaises(
+            ConfigurationError,
+            absolute_date_range, unit, date_from, date_to, date_from_format, date_to_format
+        )
+    def test_bad_formats(self):
+        unit = 'days'
+        self.assertRaises(
+            ConfigurationError,
+            absolute_date_range, unit, 'meh', 'meh', None, 'meh'
+        )
+        self.assertRaises(
+            ConfigurationError,
+            absolute_date_range, unit, 'meh', 'meh', 'meh', None
+        )
+    def test_bad_dates(self):
+        unit = 'weeks'
+        date_from_format = '%Y.%m'
+        date_to_format = '%Y.%m'
+        self.assertRaises(
+            ConfigurationError,
+            absolute_date_range, unit, 'meh', '2017.01', date_from_format, date_to_format
+        )
+        self.assertRaises(
+            ConfigurationError,
+            absolute_date_range, unit, '2017.01', 'meh', date_from_format, date_to_format
+        )
+    def test_absolute_dates(self):
+        tuples = [
+            ('seconds', '2017-01-01T00:00:00', '%Y-%m-%dT%H:%M:%S', '2017-01-01T12:34:56',
+             '%Y-%m-%dT%H:%M:%S', make_epoch(2017, 1, 1, 0, 0, 0),
+             make_epoch(2017, 1, 1, 12, 34, 56)
+            ),
+            ('days', '2017.01.01', '%Y.%m.%d', '2017.01.01', '%Y.%m.%d',
+             make_epoch(2017, 1, 1, 0, 0, 0), make_epoch(2017, 1, 1, 23, 59, 59)),
+            ('days', '2016.12.31', '%Y.%m.%d', '2017.01.01', '%Y.%m.%d',
+             make_epoch(2016, 12, 31, 0, 0, 0), make_epoch(2017, 1, 1, 23, 59, 59)),
+            ('weeks', '2017-01', '%Y-%U', '2017-01', '%Y-%U',
+             make_epoch(2017, 1, 2, 0, 0, 0), make_epoch(2017, 1, 8, 23, 59, 59)),
+            ('weeks', '2017-01', '%Y-%U', '2017-04', '%Y-%U',
+             make_epoch(2017, 1, 2, 0, 0, 0), make_epoch(2017, 1, 29, 23, 59, 59)),
+            ('weeks', '2014-01', '%G-%V', '2014-01', '%G-%V',
+             make_epoch(2013, 12, 30, 0, 0, 0), make_epoch(2014, 1, 5, 23, 59, 59)),
+            ('weeks', '2014-01', '%G-%V', '2014-04', '%G-%V',
+             make_epoch(2013, 12, 30, 0, 0, 0), make_epoch(2014, 1, 26, 23, 59, 59)),
+            ('months', '2017.01', '%Y.%m', '2017.01', '%Y.%m',
+             make_epoch(2017, 1, 1, 0, 0, 0), make_epoch(2017, 1, 31, 23, 59, 59)),
+            ('months', '2016.11', '%Y.%m', '2016.12', '%Y.%m',
+             make_epoch(2016, 11, 1, 0, 0, 0), make_epoch(2016, 12, 31, 23, 59, 59)),
+            ('years', '2017', '%Y', '2017', '%Y',
+             make_epoch(2017, 1, 1, 0, 0, 0), make_epoch(2017, 12, 31, 23, 59, 59)),
+            ('years', '2016', '%Y', '2017', '%Y',
+             make_epoch(2016, 1, 1, 0, 0, 0), make_epoch(2017, 12, 31, 23, 59, 59)),
+        ]
+        for values in tuples:
+            unit = values[0]
+            date_from = values[1]
+            date_from_format = values[2]
+            date_to = values[3]
+            date_to_format = values[4]
+            start = values[5]
+            end = values[6]
+            self.assertEqual(
+                (start, end),
+                absolute_date_range(unit, date_from, date_to, date_from_format, date_to_format)
+            )
 
+class TestIsDateMath(TestCase):
+    def test_positive(self):
+        data = '<encapsulated>'
+        self.assertTrue(isdatemath(data))
+    def test_negative(self):
+        data = 'not_encapsulated'
+        self.assertFalse(isdatemath(data))
+    def test_raises(self):
+        data = '<badly_encapsulated'
+        self.assertRaises(ConfigurationError, isdatemath, data)
 
-# class TestIsDateMath(TestCase):
-#     def test_positive(self):
-#         data = '<encapsulated>'
-#         self.assertTrue(curator.isdatemath(data))
-#     def test_negative(self):
-#         data = 'not_encapsulated'
-#         self.assertFalse(curator.isdatemath(data))
-#     def test_raises(self):
-#         data = '<badly_encapsulated'
-#         self.assertRaises(curator.ConfigurationError, curator.isdatemath, data)
+class TestGetDateMath(TestCase):
+    def test_success(self):
+        client = Mock()
+        datemath = u'{hasthemath}'
+        psuedo_random = u'not_random_at_all'
+        expected = u'curator_get_datemath_function_' + psuedo_random + u'-hasthemath'
+        client.indices.get.side_effect = (
+            NotFoundError(404, 'simulated error', {u'error':{u'index':expected}}))
+        self.assertEqual('hasthemath', get_datemath(client, datemath, psuedo_random))
+    def test_failure(self):
+        client = Mock()
+        datemath = u'{hasthemath}'
+        client.indices.get.side_effect = TypeError
+        self.assertRaises(ConfigurationError, get_datemath, client, datemath)
 
-# class TestGetDateMath(TestCase):
-#     def test_success(self):
-#         client = Mock()
-#         datemath = u'{hasthemath}'
-#         psuedo_random = u'not_random_at_all'
-#         expected = u'curator_get_datemath_function_' + psuedo_random + u'-hasthemath'
-#         client.indices.get.side_effect = (
-#             elasticsearch.NotFoundError(
-#                 404, "simulated error", {u'error':{u'index':expected}})
-#         )
-#         self.assertEqual('hasthemath', curator.get_datemath(client, datemath, psuedo_random))
-#     def test_failure(self):
-#         client = Mock()
-#         datemath = u'{hasthemath}'
-#         client.indices.get.side_effect = (
-#             elasticsearch.NotFoundError(
-#                 404, "simulated error", {u'error':{u'index':'failure'}})
-#         )
-#         self.assertRaises(curator.ConfigurationError, curator.get_datemath, client, datemath)
+class TestUnitInName(TestCase):
+    def test_no_pattern(self):
+        self.assertIsNone(get_unit_count_from_name('sample', None))
+    def test_with_match(self):
+        index_name = 'index-2017.01.01-1'
+        pattern = r'^index-\d{4}\.\d{2}\.\d{2}-(\d)$'
+        self.assertEqual(1, get_unit_count_from_name(index_name, re.compile(pattern)))
+    def test_without_match(self):
+        index_name = 'index-2017.01.01'
+        pattern = r'^index-\d{4}\.\d{2}\.\d{2}-(\d)$'
+        self.assertIsNone(get_unit_count_from_name(index_name, re.compile(pattern)))
+    def test_non_integer_match(self):
+        index_name = 'index-2017.01.01-foo'
+        pattern = r'^index-\d{4}\.\d{2}\.\d{2}-(.+)$'
+        self.assertIsNone(get_unit_count_from_name(index_name, re.compile(pattern)))
+
+class TestParseDatePattern(TestCase):
+    def test_date_math(self):
+        name = '<foo>'
+        self.assertEquals(name, parse_date_pattern(name))
+    def test_strfstring(self):
+        year = str(datetime.now().year)
+        name = '%Y'
+        self.assertEquals(year, parse_date_pattern(name))
+
+class TestTimestringSearch(TestCase):
+    def test_epoch_value(self):
+        tstring = TimestringSearch('%Y.%m.%d')
+        self.assertEqual(
+            make_epoch(2017, 1, 1, 0, 0, 0),
+            tstring.get_epoch('index-2017.01.01')
+        )
